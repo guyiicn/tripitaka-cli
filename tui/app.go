@@ -117,9 +117,9 @@ func (a *App) draw(s tcell.Screen) {
 			}
 			s.SetContent(x, y+1, r, nil, cs)
 			if cell.Mark == model.FullStop {
-				s.SetContent(x-1, y+1, '。', nil, red)
+				s.SetContent(x-1, y+1, markRune(cell.Mark), nil, red)
 			} else if cell.Mark == model.Pause {
-				s.SetContent(x-1, y+1, '、', nil, red)
+				s.SetContent(x-1, y+1, markRune(cell.Mark), nil, red)
 			}
 		}
 	}
@@ -130,6 +130,16 @@ func (a *App) draw(s tcell.Screen) {
 	status := fmt.Sprintf("←/Space 后翻  → 前翻  [/] 每列%d字  n 夹注:%s  q 退出  %d%%", a.rows, onOff(a.showNotes), pct)
 	putString(s, 1, h-1, status, muted, w-2)
 	s.Show()
+}
+
+// markRune must remain unambiguously one terminal cell wide. CJK punctuation
+// such as 。 and 、 occupies two cells; placing it beside a two-cell Han glyph
+// makes tcell clear one half of that glyph and the source character disappears.
+func markRune(mark model.Mark) rune {
+	if mark == model.FullStop {
+		return '.'
+	}
+	return ','
 }
 
 func putString(s tcell.Screen, x, y int, value string, style tcell.Style, limit int) {
