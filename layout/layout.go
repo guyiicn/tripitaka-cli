@@ -122,10 +122,13 @@ func (b Book) Page(start, count int) []Column {
 
 // ColumnAtSource locates the stable reading position after a resize/reflow.
 func (b Book) ColumnAtSource(index int) int {
-	i := sort.Search(len(b.Columns), func(i int) bool { return b.Columns[i].SourceStart > index })
-	if i == 0 {
+	// Several structural columns can share the same source position as the
+	// following body text. In particular, volume headings commonly live at
+	// position zero. A request for the beginning must include those columns.
+	if len(b.Columns) == 0 || index <= b.Columns[0].SourceStart {
 		return 0
 	}
+	i := sort.Search(len(b.Columns), func(i int) bool { return b.Columns[i].SourceStart > index })
 	return i - 1
 }
 

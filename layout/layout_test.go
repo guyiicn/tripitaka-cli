@@ -38,3 +38,17 @@ func TestColumnAtSourceSurvivesReflow(t *testing.T) {
 		t.Fatalf("column = %d, want 2", got)
 	}
 }
+
+func TestColumnAtSourceZeroIncludesLeadingHeading(t *testing.T) {
+	d := &model.Document{
+		Text:     "如是我聞",
+		Headings: []model.Heading{{At: 0, Text: "佛說測試經", Kind: "fen"}},
+	}
+	b := Build(d, Options{Rows: 4})
+	if len(b.Columns) < 2 || b.Columns[0].SourceStart != 0 || b.Columns[1].SourceStart != 0 {
+		t.Fatalf("test requires duplicate leading source positions: %+v", b.Columns)
+	}
+	if got := b.ColumnAtSource(0); got != 0 {
+		t.Fatalf("ColumnAtSource(0) = %d, want first heading column", got)
+	}
+}
