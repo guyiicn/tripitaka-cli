@@ -117,9 +117,9 @@ func (a *App) draw(s tcell.Screen) {
 			}
 			s.SetContent(x, y+1, r, nil, cs)
 			if cell.Mark == model.FullStop {
-				s.SetContent(x-1, y+1, markRune(cell.Mark), nil, red)
+				s.SetContent(markX(x), y+1, markRune(cell.Mark), nil, red)
 			} else if cell.Mark == model.Pause {
-				s.SetContent(x-1, y+1, markRune(cell.Mark), nil, red)
+				s.SetContent(markX(x), y+1, markRune(cell.Mark), nil, red)
 			}
 		}
 	}
@@ -131,6 +131,11 @@ func (a *App) draw(s tcell.Screen) {
 	putString(s, 1, h-1, status, muted, w-2)
 	s.Show()
 }
+
+// markX returns the interlinear punctuation cell on the right side of a Han
+// glyph. A vertical column is three cells wide: two for the glyph and one for
+// its traditional right-hand judou mark.
+func markX(glyphX int) int { return glyphX + 2 }
 
 // markRune must remain unambiguously one terminal cell wide. CJK punctuation
 // such as 。 and 、 occupies two cells; placing it beside a two-cell Han glyph

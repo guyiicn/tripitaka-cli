@@ -14,3 +14,10 @@ func TestPunctuationMarksAreSingleCellASCII(t *testing.T) {
 		}
 	}
 }
+
+func TestPunctuationIsPlacedRightOfHanGlyph(t *testing.T) {
+	const glyphX = 12
+	if got := markX(glyphX); got != 14 {
+		t.Fatalf("mark x = %d, want 14 (after the two-cell Han glyph)", got)
+	}
+}
