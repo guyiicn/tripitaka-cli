@@ -94,6 +94,7 @@ func (a *App) handleHome(ev *tcell.EventKey) {
 	switch {
 	case ev.Rune() == '/':
 		a.mode, a.query, a.selected = modeSearch, nil, 0
+		a.message = ""
 		a.updateSearch()
 	case ev.Rune() == 'b':
 		a.openBookmarks()
@@ -136,6 +137,7 @@ func (a *App) handleSearch(ev *tcell.EventKey) {
 	if ev.Rune() != 0 && ev.Modifiers()&tcell.ModCtrl == 0 {
 		a.query = append(a.query, ev.Rune())
 		a.selected = 0
+		a.message = ""
 		a.updateSearch()
 	}
 }
@@ -342,6 +344,9 @@ func (a *App) drawSearch(s tcell.Screen) {
 	w, h := s.Size()
 	base, muted, accent, selected := styles()
 	putString(s, 2, 1, "搜索："+string(a.query)+"_", accent.Bold(true), w-4)
+	if a.message != "" {
+		putString(s, 2, 2, a.message, base.Foreground(tcell.ColorRed), w-4)
+	}
 	if len(a.query) == 0 {
 		putString(s, 2, 3, "支持繁体、简体、拼音/首字母和经号", muted, w-4)
 	}
