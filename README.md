@@ -39,6 +39,54 @@ go run ./cmd/tripitaka-cli ./testdata/T0251_001.json
 go run ./cmd/tripitaka-cli --data ./local-data
 ```
 
+## 准备经文数据
+
+本仓库只发布阅读器代码，**不附带经文数据**。程序不能直接读取 CBETA XML、原始 TXT
+或 Android 版的 `tripitaka.db`，需要使用
+[`guyiicn/tripitaka`](https://github.com/guyiicn/tripitaka) 的
+[`pipeline/cbeta_prep.py`](https://github.com/guyiicn/tripitaka/blob/main/pipeline/cbeta_prep.py)
+将 CBETA 纯文本转换为紧凑 JSON v2。
+
+生成后的可用数据目录必须是下面的结构：
+
+```text
+local-data/
+├── catalog.json
+├── T0251/
+│   ├── _meta.json
+│   └── 001.json
+└── T2058/
+    ├── _meta.json
+    ├── 001.json
+    ├── 002.json
+    └── ...
+```
+
+其中 `catalog.json` 是全局目录；每部经的 `_meta.json` 记录卷号；`001.json` 等文件是
+各卷正文。数据放好后运行：
+
+```sh
+go run ./cmd/tripitaka-cli --data ./local-data
+```
+
+也可先验证一卷是否为正确格式，不进入交互界面：
+
+```sh
+go run ./cmd/tripitaka-cli --check ./local-data/T2058/001.json
+```
+
+若生成目录将 `catalog.json` 与 `data/` 分开放置，无需复制文件，可分别指定：
+
+```sh
+go run ./cmd/tripitaka-cli \
+  --data /path/to/generated/data \
+  --catalog /path/to/generated/catalog.json
+```
+
+原始经文请从 [CBETA 官方资源](https://www.cbeta.org)取得。经文不受本仓库 MIT
+许可证覆盖；使用及再分发时须遵守
+[CBETA 版权声明](https://www.cbeta.org/copyright)。
+
 先做非交互数据检查：
 
 ```sh

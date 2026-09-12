@@ -46,6 +46,9 @@ func main() {
 			*catalogPath = filepath.Join(*dataDir, "catalog.json")
 		}
 		lib, err = library.OpenDirectory(*dataDir, *catalogPath)
+		if err != nil {
+			err = fmt.Errorf("未找到可用的紧凑 JSON v2 经文数据（%s）：%w\n数据准备说明：https://github.com/guyiicn/tripitaka-cli#准备经文数据", *catalogPath, err)
+		}
 	}
 	if err != nil {
 		fail(err)
