@@ -1,4 +1,4 @@
 /tripitaka-cli
 /dist/
+/local-data/
 *.db
-

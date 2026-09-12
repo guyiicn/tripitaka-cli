@@ -22,6 +22,12 @@
 go run ./cmd/tripitaka-cli ./testdata/T0251_001.json
 ```
 
+先做非交互数据检查：
+
+```sh
+go run ./cmd/tripitaka-cli --check ./testdata/T0251_001.json
+```
+
 按键：
 
 - `←`、`Space`、`PageDown`、`l`：向后翻页（版面向左推进）
@@ -36,4 +42,3 @@ go run ./cmd/tripitaka-cli ./testdata/T0251_001.json
 终端没有 CSS 的半个汉字宽度，因此 Web 版“双行夹注”不能在普通字符终端中等比复刻。当前将夹注以青色 `〔…〕` 插入字格流；后续可为 Kitty/Sixel 添加图形精排后端，但纯字符后端始终可用。
 
 数据不提交到本仓库。程序代码与 CBETA 经文数据应分别授权和发布。
-
