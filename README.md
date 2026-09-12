@@ -2,6 +2,15 @@
 
 原生终端竖排 CBETA 大藏经阅读器。正文列内自上而下，列序自右向左；排版单位是终端字符格，不依赖浏览器、CSS 或图像协议。
 
+## 界面
+
+<p align="center">
+  <img src="docs/screenshots/01-lotus.png" alt="字符莲花开经页" width="49%">
+  <img src="docs/screenshots/02-opening-verse.png" alt="竖排开经偈" width="49%">
+  <img src="docs/screenshots/03-vertical-reader.png" alt="付法藏因缘传卷二竖排正文" width="49%">
+  <img src="docs/screenshots/04-volume-navigation.png" alt="卷末切换下一卷提示" width="49%">
+</p>
+
 ## 当前状态
 
 首个可运行骨架已包含：
