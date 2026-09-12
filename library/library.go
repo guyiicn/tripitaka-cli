@@ -14,6 +14,7 @@ type Store interface {
 	Catalog() []catalog.Entry
 	Load(id, juan string) (*model.Document, error)
 	FirstJuan(id string) string
+	Juans(id string) []string
 }
 
 type Directory struct {
@@ -36,16 +37,24 @@ func (d *Directory) Load(id, juan string) (*model.Document, error) {
 }
 
 func (d *Directory) FirstJuan(id string) string {
+	juans := d.Juans(id)
+	if len(juans) > 0 {
+		return juans[0]
+	}
+	return "001"
+}
+
+func (d *Directory) Juans(id string) []string {
 	b, err := os.ReadFile(filepath.Join(d.root, id, "_meta.json"))
 	if err == nil {
 		var m struct {
 			Juans []string `json:"juans"`
 		}
 		if json.Unmarshal(b, &m) == nil && len(m.Juans) > 0 {
-			return m.Juans[0]
+			return m.Juans
 		}
 	}
-	return "001"
+	return nil
 }
 
 type Single struct {
@@ -63,3 +72,4 @@ func (s *Single) Load(id, juan string) (*model.Document, error) {
 	return s.doc, nil
 }
 func (s *Single) FirstJuan(id string) string { return s.doc.Juan }
+func (s *Single) Juans(id string) []string   { return []string{s.doc.Juan} }

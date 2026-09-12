@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -22,6 +23,15 @@ const (
 	modeRecent
 )
 
+type ceremony int
+
+const (
+	ceremonyText ceremony = iota
+	ceremonyLotus
+	ceremonyOpening
+	ceremonyDedication
+)
+
 type navItem struct {
 	id, juan, title, detail string
 	char                    int
@@ -35,6 +45,9 @@ type App struct {
 	doc                  *model.Document
 	book                 layout.Book
 	rows, start          int
+	juans                []string
+	juanIndex            int
+	ceremony             ceremony
 	showNotes            bool
 	homeItems, listItems []navItem
 	selected             int
@@ -169,20 +182,24 @@ func (a *App) handleReader(s tcell.Screen, ev *tcell.EventKey) {
 		a.refreshHome()
 		a.mode, a.selected = modeHome, 0
 	case ev.Key() == tcell.KeyLeft || ev.Key() == tcell.KeyPgDn || ev.Rune() == ' ' || ev.Rune() == 'l':
-		a.start = min(max(0, len(a.book.Columns)-1), a.start+a.visibleColumns(s))
-		a.saveProgress()
+		a.forward(s)
 	case ev.Key() == tcell.KeyRight || ev.Key() == tcell.KeyPgUp || ev.Rune() == 'h':
-		a.start = max(0, a.start-a.visibleColumns(s))
-		a.saveProgress()
+		a.backward(s)
 	case ev.Key() == tcell.KeyHome || ev.Rune() == 'g':
+		a.ceremony = ceremonyText
 		a.start = 0
 		a.saveProgress()
 	case ev.Key() == tcell.KeyEnd || ev.Rune() == 'G':
+		a.ceremony = ceremonyText
 		a.start = max(0, len(a.book.Columns)-a.visibleColumns(s))
 		a.saveProgress()
 	case ev.Rune() == ']':
-		a.setRows(a.rows + 1)
+		a.switchVolume(1)
 	case ev.Rune() == '[':
+		a.switchVolume(-1)
+	case ev.Rune() == '+' || ev.Rune() == '=':
+		a.setRows(a.rows + 1)
+	case ev.Rune() == '-':
 		a.setRows(max(8, a.rows-1))
 	case ev.Rune() == 'n':
 		a.showNotes = !a.showNotes
@@ -195,9 +212,11 @@ func (a *App) handleReader(s tcell.Screen, ev *tcell.EventKey) {
 func (a *App) updateSearch() { a.results = catalog.Search(a.library.Catalog(), string(a.query), 20) }
 
 func (a *App) openItem(item navItem) {
+	restored := false
 	if item.bookmarkID == 0 && item.char == 0 && a.state != nil {
 		if p, err := a.state.LatestProgress(item.id); err == nil {
 			item.juan, item.char = p.Juan, p.Char
+			restored = true
 		}
 	}
 	doc, err := a.library.Load(item.id, item.juan)
@@ -206,9 +225,95 @@ func (a *App) openItem(item navItem) {
 		return
 	}
 	a.doc = doc
+	a.juans = a.library.Juans(item.id)
+	if len(a.juans) == 0 {
+		a.juans = []string{item.juan}
+	}
+	a.juanIndex = indexOf(a.juans, item.juan)
+	if a.juanIndex < 0 {
+		a.juans = append(a.juans, item.juan)
+		a.juanIndex = len(a.juans) - 1
+	}
 	a.book = layout.Build(doc, layout.Options{Rows: a.rows, ShowNotes: a.showNotes})
 	a.start = a.book.ColumnAtSource(item.char)
+	a.ceremony = ceremonyText
+	if a.juanIndex == 0 && item.char == 0 && item.bookmarkID == 0 && !restored {
+		a.ceremony = ceremonyLotus
+	}
 	a.mode, a.message = modeReader, ""
+	a.saveProgress()
+}
+
+func (a *App) forward(s tcell.Screen) {
+	switch a.ceremony {
+	case ceremonyLotus:
+		a.ceremony = ceremonyOpening
+	case ceremonyOpening:
+		a.ceremony = ceremonyText
+		a.start = 0
+	case ceremonyDedication:
+		a.message = "全經已讀完"
+	case ceremonyText:
+		last := max(0, len(a.book.Columns)-a.visibleColumns(s))
+		if a.start < last {
+			a.start = min(last, a.start+a.visibleColumns(s))
+			a.message = ""
+			a.saveProgress()
+		} else if a.juanIndex == len(a.juans)-1 {
+			a.ceremony = ceremonyDedication
+		} else {
+			a.message = fmt.Sprintf("卷%s已讀完 · 按 ] 進入卷%s / 共%d卷", juanLabel(a.doc.Juan), juanLabel(a.juans[a.juanIndex+1]), len(a.juans))
+		}
+	}
+}
+
+func (a *App) backward(s tcell.Screen) {
+	switch a.ceremony {
+	case ceremonyDedication:
+		a.ceremony = ceremonyText
+		a.start = max(0, len(a.book.Columns)-a.visibleColumns(s))
+	case ceremonyOpening:
+		a.ceremony = ceremonyLotus
+	case ceremonyLotus:
+		return
+	case ceremonyText:
+		if a.start > 0 {
+			a.start = max(0, a.start-a.visibleColumns(s))
+			a.message = ""
+			a.saveProgress()
+		} else if a.juanIndex == 0 {
+			a.ceremony = ceremonyOpening
+		}
+	}
+}
+
+func (a *App) switchVolume(delta int) {
+	target := a.juanIndex + delta
+	if target < 0 {
+		a.message = "已是第一卷"
+		return
+	}
+	if target >= len(a.juans) {
+		a.message = "已是最後一卷"
+		return
+	}
+	a.saveProgress()
+	juan := a.juans[target]
+	doc, err := a.library.Load(a.doc.ID, juan)
+	if err != nil {
+		a.message = "開卷失敗：" + err.Error()
+		return
+	}
+	char := 0
+	if a.state != nil {
+		if p, err := a.state.Progress(doc.ID, juan); err == nil {
+			char = p.Char
+		}
+	}
+	a.doc, a.juanIndex, a.ceremony = doc, target, ceremonyText
+	a.book = layout.Build(doc, layout.Options{Rows: a.rows, ShowNotes: a.showNotes})
+	a.start = a.book.ColumnAtSource(char)
+	a.message = fmt.Sprintf("卷%s · %d/%d", juanLabel(juan), target+1, len(a.juans))
 	a.saveProgress()
 }
 
@@ -235,7 +340,7 @@ func (a *App) currentChar() int {
 	return 0
 }
 func (a *App) saveProgress() {
-	if a.state == nil || a.doc == nil {
+	if a.state == nil || a.doc == nil || a.ceremony != ceremonyText {
 		return
 	}
 	pos := a.currentChar()
@@ -379,9 +484,13 @@ func (a *App) drawList(s tcell.Screen, title, footer string) {
 func (a *App) drawReader(s tcell.Screen) {
 	w, h := s.Size()
 	base, muted, accent, _ := styles()
+	if a.ceremony != ceremonyText {
+		a.drawCeremony(s)
+		return
+	}
 	red := base.Foreground(tcell.NewRGBColor(178, 52, 42))
 	note := base.Foreground(tcell.ColorDarkCyan)
-	putString(s, 1, 0, fmt.Sprintf("大藏經  %s  卷%s", a.doc.Title, a.doc.Juan), accent.Bold(true), w-2)
+	putString(s, 1, 0, fmt.Sprintf("大藏經 · %s · 卷%s / 共%d卷", a.doc.Title, juanLabel(a.doc.Juan), len(a.juans)), accent.Bold(true), w-2)
 	rows := min(a.rows, max(1, h-3))
 	for ci, col := range a.book.Page(a.start, a.visibleColumns(s)) {
 		x := w - 3 - ci*3
@@ -412,9 +521,62 @@ func (a *App) drawReader(s tcell.Screen) {
 	if len(a.book.Columns) > 1 {
 		pct = a.start * 100 / (len(a.book.Columns) - 1)
 	}
-	putString(s, 1, h-1, fmt.Sprintf("←/Space 后翻  → 前翻  b 书签  [/] %d字  n 注:%s  Esc 首页  q 退出  %d%%", a.rows, onOff(a.showNotes), pct), muted, w-2)
+	putString(s, 1, h-1, fmt.Sprintf("←/Space 後翻  → 前翻  [ 上卷  ] 下卷  -/+ 每列%d字  b 書籤  n 注:%s  %d%%", a.rows, onOff(a.showNotes), pct), muted, w-2)
 	if a.message != "" {
 		putString(s, 1, h-2, a.message, accent, w-2)
+	}
+}
+
+func (a *App) drawCeremony(s tcell.Screen) {
+	w, h := s.Size()
+	base, muted, accent, _ := styles()
+	header := fmt.Sprintf("大藏經 · %s · 卷%s / 共%d卷", a.doc.Title, juanLabel(a.doc.Juan), len(a.juans))
+	putString(s, 1, 0, header, accent.Bold(true), w-2)
+	switch a.ceremony {
+	case ceremonyLotus:
+		lotus := []string{
+			"             .-^-.",
+			"          .-'  |  '-.",
+			"       .-'  \\  |  /  '-.",
+			"      /  .---\\ | /---.  \\",
+			"     /.-'     \\|/     '-.\\",
+			"     \\    .--/|\\--.    /",
+			"      '._/___/ | \\___\\_.'",
+			"          '---[_]---'",
+			"             /_\\",
+		}
+		startY := max(2, (h-len(lotus))/2)
+		for i, line := range lotus {
+			center(s, startY+i, line, accent, w)
+		}
+		center(s, h-2, "一瓣蓮華 · 一卷經聲", muted, w)
+		putString(s, 1, h-1, "←/Space 開經偈  Esc 首頁  q 退出", muted, w-2)
+	case ceremonyOpening:
+		drawVerticalVerse(s, "開 經 偈", []string{"無上甚深微妙法", "百千萬劫難遭遇", "我今見聞得受持", "願解如來真實義"}, accent, base)
+		putString(s, 1, h-1, "←/Space 進入正文  → 返回蓮花  Esc 首頁  q 退出", muted, w-2)
+	case ceremonyDedication:
+		drawVerticalVerse(s, "回 向 偈", []string{"願以此功德", "莊嚴佛淨土", "上報四重恩", "下濟三途苦", "若有見聞者", "悉發菩提心", "盡此一報身", "同生極樂國"}, accent, base)
+		putString(s, 1, h-1, "→ 返回末卷  Esc 首頁  q 退出", muted, w-2)
+	}
+}
+
+func drawVerticalVerse(s tcell.Screen, title string, lines []string, titleStyle, textStyle tcell.Style) {
+	w, h := s.Size()
+	center(s, 2, title, titleStyle.Bold(true), w)
+	spacing := 4
+	right := (w+len(lines)*spacing)/2 - spacing
+	for i, line := range lines {
+		x := right - i*spacing
+		if x < 0 || x >= w {
+			continue
+		}
+		for j, r := range []rune(line) {
+			y := 5 + j
+			if y >= h-2 {
+				break
+			}
+			s.SetContent(x, y, r, nil, textStyle)
+		}
 	}
 }
 
@@ -483,4 +645,46 @@ func onOff(v bool) string {
 		return "开"
 	}
 	return "关"
+}
+
+func indexOf(values []string, value string) int {
+	for i, candidate := range values {
+		if candidate == value {
+			return i
+		}
+	}
+	return -1
+}
+
+func juanLabel(juan string) string {
+	n, err := strconv.Atoi(juan)
+	if err != nil || n <= 0 || n > 9999 {
+		return juan
+	}
+	digits := []string{"零", "一", "二", "三", "四", "五", "六", "七", "八", "九"}
+	units := []string{"", "十", "百", "千"}
+	result := ""
+	zeroPending := false
+	for place := 3; place >= 0; place-- {
+		power := 1
+		for i := 0; i < place; i++ {
+			power *= 10
+		}
+		digit := n / power % 10
+		if digit == 0 {
+			if result != "" && n%power != 0 {
+				zeroPending = true
+			}
+			continue
+		}
+		if zeroPending {
+			result += digits[0]
+			zeroPending = false
+		}
+		if !(digit == 1 && place == 1 && result == "") {
+			result += digits[digit]
+		}
+		result += units[place]
+	}
+	return result
 }

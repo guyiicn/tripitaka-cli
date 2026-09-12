@@ -76,7 +76,7 @@ CREATE INDEX IF NOT EXISTS bookmarks_recent ON bookmarks(created_at DESC);
 func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) SaveProgress(p Progress) error {
-	p.Updated = time.Now().Unix()
+	p.Updated = time.Now().UnixNano()
 	_, err := s.db.Exec(`
 INSERT INTO progress(sutra_id,juan,title,char_index,context,updated_at) VALUES(?,?,?,?,?,?)
 ON CONFLICT(sutra_id,juan) DO UPDATE SET title=excluded.title,char_index=excluded.char_index,
@@ -120,7 +120,7 @@ FROM progress ORDER BY updated_at DESC LIMIT ?`, limit)
 }
 
 func (s *Store) AddBookmark(b Bookmark) error {
-	b.Created = time.Now().Unix()
+	b.Created = time.Now().UnixNano()
 	_, err := s.db.Exec(`INSERT INTO bookmarks(sutra_id,juan,title,char_index,snippet,created_at)
 VALUES(?,?,?,?,?,?)`, b.SutraID, b.Juan, b.Title, b.Char, b.Snippet, b.Created)
 	return err
